@@ -1,8 +1,3 @@
-# Install required packages (for Colab or first-time runs)
-!pip install streamlit openai pandas xlsxwriter
-
-# Save this as `app.py` if running locally, or run in a Streamlit environment
-
 import streamlit as st
 import pandas as pd
 import io
