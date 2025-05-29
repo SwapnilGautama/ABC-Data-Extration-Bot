@@ -5,6 +5,8 @@ import openai
 import requests
 from datetime import datetime
 
+st.set_page_config(page_title="ABC Data Extractor", page_icon="📚")
+
 # Load Excel from GitHub raw URL using requests
 @st.cache_data
 def load_data():
@@ -52,7 +54,6 @@ def user_input(query, df):
 df = load_data()
 
 # UI Design
-st.set_page_config(page_title="ABC Data Extractor", page_icon="📚")
 st.title("📚 Chat with ABC Data Extractor")
 
 # Sidebar with available report dates and products
