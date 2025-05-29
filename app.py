@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-import io
 import openai
+import io
+import requests
 from datetime import datetime
 
 # Set Streamlit page config first
