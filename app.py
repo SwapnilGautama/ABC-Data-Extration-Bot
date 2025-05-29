@@ -11,11 +11,9 @@ def load_data():
     url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extration-Bot/main/Customer_Master_Enhanced.xlsx"
     response = requests.get(url)
     if response.status_code != 200:
-        raise Exception("Failed to download Excel file from GitHub.")
-    
+        raise Exception("Failed to fetch the Excel file.")
     excel_file = io.BytesIO(response.content)
-    xls = pd.ExcelFile(excel_file)
-    df = xls.parse(xls.sheet_names[0])  # Read the first sheet
+    df = pd.read_excel(excel_file, engine='openpyxl')
     return df
 
 # Function to filter based on user input
