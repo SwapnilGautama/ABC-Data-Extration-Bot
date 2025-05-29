@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime
 import openai
+import dateparser
+from datetime import datetime
 
 # Load Excel from GitHub raw URL
 @st.cache_data
@@ -13,65 +14,54 @@ def load_data():
 
 # Function to filter based on user input
 def filter_data(df, query):
-    # Naive filter using simple keywords — extend as needed
     filtered = df.copy()
 
-    if "product a" in query.lower():
-        filtered = filtered[filtered['product'].str.lower() == 'product a']
-    elif "product b" in query.lower():
-        filtered = filtered[filtered['product'].str.lower() == 'product b']
+    # Extract date using dateparser
+    parsed_date = dateparser.parse(query)
+    if parsed_date:
+        parsed_date_str = parsed_date.strftime('%Y-%m-%d')
+        filtered = filtered[filtered['report_date'].astype(str).str.startswith(parsed_date_str)]
 
-    if "2025-05-24" in query:
-        filtered = filtered[filtered['report_date'] == "2025-05-24"]
+    # Filter by product keyword
+    products = df['product'].dropna().unique()
+    for product in products:
+        if product.lower() in query.lower():
+            filtered = filtered[filtered['product'].str.lower() == product.lower()]
+            break
 
     return filtered
 
-# Function to generate Excel from filtered data
-def to_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Filtered Data')
-    processed_data = output.getvalue()
-    return processed_data
+# UI
+st.set_page_config(page_title="ABC Data Extraction Bot", layout="wide")
+st.title("🤖 Chat with ABC Data Extractor")
 
-# Load the data
+# Sidebar - show available filters
+st.sidebar.markdown("### 🗓️ Available Report Dates")
 df = load_data()
+report_dates = sorted(df['report_date'].astype(str).unique())
+for date in report_dates:
+    st.sidebar.markdown(f"- {date}")
 
-# Sidebar: Show available report dates and products
-with st.sidebar:
-    st.header("📅 Available Report Dates")
-    report_dates = df['report_date'].dropna().unique()
-    for date in sorted(report_dates):
-        if isinstance(date, str):
-            st.markdown(f"- {date}")
-        else:
-            st.markdown(f"- {date.strftime('%Y-%m-%d')}")
+st.sidebar.markdown("### 📦 Available Products")
+products = df['product'].dropna().unique()
+for p in sorted(products):
+    st.sidebar.markdown(f"- {p}")
 
-    st.header("📦 Available Products")
-    products = df['product'].dropna().unique()
-    for product in sorted(products):
-        st.markdown(f"- {product}")
-
-# Main UI
-st.title("📊 Data Extraction Chatbot")
-
-user_input = st.text_input("Ask a question about the dataset (e.g., 'Show Product A data for 2025-05-24')")
+# User input
+user_input = st.text_input("Ask a question about the data (e.g., 'gold loan data for 24th May')")
 
 if user_input:
     st.write("Processing your request...")
-
-    # Filter data based on the query
     filtered_df = filter_data(df, user_input)
 
     if not filtered_df.empty:
         st.success("Here is your extracted data:")
         st.dataframe(filtered_df)
 
-        # Provide download link for Excel
-        excel_data = to_excel(filtered_df)
-        st.download_button(label="📥 Download Excel",
-                           data=excel_data,
-                           file_name='filtered_data.xlsx',
-                           mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # Download link
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            filtered_df.to_excel(writer, index=False, sheet_name='Extract')
+        st.download_button("📥 Download Excel", output.getvalue(), file_name="filtered_data.xlsx")
     else:
-        st.warning("No matching records found.")
+        st.warning("No matching data found. Please try refining your query.")
