@@ -4,6 +4,8 @@ openai
 xlsxwriter
 dateparser
 requests
+openpyxl
+
 
 
 
