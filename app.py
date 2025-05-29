@@ -11,8 +11,8 @@ st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extratiion-Bot/main/Customer_Master_Enhanced.xlsx"
-    excel_file = pd.ExcelFile(url)
-    df = pd.read_excel(excel_file)
+    response = requests.get(url)
+    df = pd.read_excel(io.BytesIO(response.content))
     return df
 
 # Clean and match text
