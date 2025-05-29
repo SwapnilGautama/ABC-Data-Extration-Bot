@@ -24,25 +24,30 @@ def load_data():
     return df
     
 # Clean and match text
-def normalize(text):
-    return str(text).strip().lower()
-
-# Filter function using user query
 def filter_data(df, query):
     filtered = df.copy()
-    q = normalize(query)
 
-    # Filter by product
-    products = df['product'].dropna().unique()
-    matched_products = [p for p in products if normalize(p) in q]
-    if matched_products:
-        filtered = filtered[filtered['product'].isin(matched_products)]
+    query = query.lower()
 
-    # Filter by date
-    dates = df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()
-    matched_dates = [d for d in dates if d in q or datetime.strptime(d, "%Y-%m-%d").strftime("%d %B").lower() in q or datetime.strptime(d, "%Y-%m-%d").strftime("%d %b").lower() in q]
-    if matched_dates:
-        filtered = filtered[filtered['report_date'].dt.strftime('%Y-%m-%d').isin(matched_dates)]
+    # Filter by product if mentioned
+    products = df['product'].unique()
+    for prod in products:
+        if prod.lower() in query:
+            filtered = filtered[filtered['product'].str.lower() == prod.lower()]
+            break  # Apply first matching product only
+
+    # Filter by date if a recognizable date is mentioned (e.g. "24th May", "2025-05-24")
+    from dateutil import parser
+    import re
+
+    # Extract something like '24th May', 'May 24', or '2025-05-24'
+    date_match = re.search(r'\d{1,2}[a-z]{0,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2}', query)
+    if date_match:
+        try:
+            parsed_date = parser.parse(date_match.group()).date()
+            filtered = filtered[filtered['report_date'].dt.date == parsed_date]
+        except:
+            pass  # silently fail if parsing fails
 
     return filtered
 
