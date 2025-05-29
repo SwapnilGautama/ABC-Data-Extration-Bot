@@ -3,5 +3,7 @@ pandas
 openai
 xlsxwriter
 dateparser
+requests
+
 
 
