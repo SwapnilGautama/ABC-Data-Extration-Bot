@@ -2,81 +2,75 @@ import streamlit as st
 import pandas as pd
 import io
 import openai
-import requests
 from datetime import datetime
 
-st.set_page_config(page_title="ABC Data Extractor", page_icon="📚")
+# Set Streamlit page config first
+st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 
-# Load Excel from GitHub raw URL using requests
+# Load Excel from GitHub
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extration-Bot/main/Customer_Master_Enhanced.xlsx"
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise Exception("Failed to fetch the Excel file.")
-    excel_file = io.BytesIO(response.content)
-    df = pd.read_excel(excel_file, engine='openpyxl')
+    url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extratiion-Bot/main/Customer_Master_Enhanced.xlsx"
+    excel_file = pd.ExcelFile(url)
+    df = pd.read_excel(excel_file)
     return df
 
-# Function to filter based on user input
+# Clean and match text
+def normalize(text):
+    return str(text).strip().lower()
+
+# Filter function using user query
 def filter_data(df, query):
     filtered = df.copy()
+    q = normalize(query)
 
-    if "product" in query.lower():
-        for prod in df['product'].unique():
-            if prod.lower() in query.lower():
-                filtered = filtered[filtered['product'].str.lower() == prod.lower()]
-                break
+    # Filter by product
+    products = df['product'].dropna().unique()
+    matched_products = [p for p in products if normalize(p) in q]
+    if matched_products:
+        filtered = filtered[filtered['product'].isin(matched_products)]
 
-    if "report_date" in query.lower() or "may" in query.lower():
-        for date in df['report_date'].dt.date.unique():
-            date_str = date.strftime("%Y-%m-%d")
-            if date_str in query or date.strftime("%d") in query:
-                filtered = filtered[filtered['report_date'].dt.date == date]
-                break
+    # Filter by date
+    dates = df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()
+    matched_dates = [d for d in dates if d in q or datetime.strptime(d, "%Y-%m-%d").strftime("%d %B").lower() in q or datetime.strptime(d, "%Y-%m-%d").strftime("%d %b").lower() in q]
+    if matched_dates:
+        filtered = filtered[filtered['report_date'].dt.strftime('%Y-%m-%d').isin(matched_dates)]
 
     return filtered
 
-# Function to handle user input and generate response
-def user_input(query, df):
-    filtered_df = filter_data(df, query)
+# Sidebar display for user clarity
+def sidebar_filters(df):
+    st.sidebar.markdown("### 📅 Available Report Dates")
+    for date in sorted(df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()):
+        st.sidebar.markdown(f"- {date}")
 
-    if filtered_df.empty:
-        return None, "Sorry, no records matched your query."
-    
-    output = io.BytesIO()
-    filtered_df.to_excel(output, index=False, engine='xlsxwriter')
-    output.seek(0)
-    
-    return output, "Here is your extracted data:"
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📦 Available Products")
+    for product in sorted(df['product'].dropna().unique()):
+        st.sidebar.markdown(f"- {product}")
 
-# Load the data
+# App UI
+st.title("📘 Chat with ABC Data Extractor")
+user_input = st.text_input("Ask a question about the data (e.g. 'show me gold loan data from 24th May')")
+
 df = load_data()
+sidebar_filters(df)
 
-# UI Design
-st.title("📚 Chat with ABC Data Extractor")
+if user_input:
+    st.markdown("Processing your request...")
 
-# Sidebar with available report dates and products
-with st.sidebar:
-    st.markdown("### 📅 Available Report Dates")
-    for date in sorted(df['report_date'].dt.date.unique()):
-        st.write(f"- {date}")
+    result = filter_data(df, user_input)
 
-    st.markdown("---")
-    st.markdown("### 📦 Available Products")
-    for product in sorted(df['product'].unique()):
-        st.write(f"- {product}")
+    if not result.empty:
+        st.success("Here is your extracted data:")
+        st.markdown(f"🔹 **{len(result)} rows** matched your query.")
+        st.dataframe(result)
 
-# User Input
-query = st.text_input("Ask a question about the data:", placeholder="e.g. Show me gold loan records for 24th May")
+        # Export to Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            result.to_excel(writer, index=False, sheet_name='FilteredData')
+        st.download_button("⬇️ Download Excel", output.getvalue(), file_name="filtered_data.xlsx", mime="application/vnd.ms-excel")
 
-if query:
-    st.write("Processing your request...")
-    output, message = user_input(query, df)
-
-    if output:
-        st.success(message)
-        st.dataframe(pd.read_excel(output))
-        st.download_button("📥 Download Excel", data=output, file_name="filtered_data.xlsx")
     else:
-        st.warning(message)
+        st.warning("No results found for your query. Please try refining it.")
