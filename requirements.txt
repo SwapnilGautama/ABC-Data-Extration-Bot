@@ -3,4 +3,6 @@ pandas
 openpyxl
 xlsxwriter
 openai
+dateparser
+
 
