@@ -14,7 +14,8 @@ def load_data():
         raise Exception("Failed to download Excel file from GitHub.")
     
     excel_file = io.BytesIO(response.content)
-    df = pd.read_excel(excel_file)
+    xls = pd.ExcelFile(excel_file)
+    df = xls.parse(xls.sheet_names[0])  # Read the first sheet
     return df
 
 # Function to filter based on user input
