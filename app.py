@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
-import openai
 from datetime import datetime
+import openai
 
 # Load Excel from GitHub raw URL
 @st.cache_data
@@ -18,37 +18,60 @@ def filter_data(df, query):
 
     if "product a" in query.lower():
         filtered = filtered[filtered['product'].str.lower() == 'product a']
-    if "last 3 days" in query.lower():
-        today = df['report_date'].max()
-        last_3 = today - pd.Timedelta(days=3)
-        filtered = filtered[filtered['report_date'] >= last_3]
-    
+    elif "product b" in query.lower():
+        filtered = filtered[filtered['product'].str.lower() == 'product b']
+
+    if "2025-05-24" in query:
+        filtered = filtered[filtered['report_date'] == "2025-05-24"]
+
     return filtered
 
-# Streamlit UI
-st.title("📊 ABC Data Extraction Chatbot")
+# Function to generate Excel from filtered data
+def to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Filtered Data')
+    processed_data = output.getvalue()
+    return processed_data
 
-st.markdown("Ask a question about the data, e.g.: `Show me data for Product A from last 3 days`")
+# Load the data
+df = load_data()
 
-user_input = st.text_input("Your query")
+# Sidebar: Show available report dates and products
+with st.sidebar:
+    st.header("📅 Available Report Dates")
+    report_dates = df['report_date'].dropna().unique()
+    for date in sorted(report_dates):
+        if isinstance(date, str):
+            st.markdown(f"- {date}")
+        else:
+            st.markdown(f"- {date.strftime('%Y-%m-%d')}")
+
+    st.header("📦 Available Products")
+    products = df['product'].dropna().unique()
+    for product in sorted(products):
+        st.markdown(f"- {product}")
+
+# Main UI
+st.title("📊 Data Extraction Chatbot")
+
+user_input = st.text_input("Ask a question about the dataset (e.g., 'Show Product A data for 2025-05-24')")
 
 if user_input:
-    df = load_data()
-    result_df = filter_data(df, user_input)
+    st.write("Processing your request...")
 
-    st.write(f"🔍 Showing {len(result_df)} records based on your query")
+    # Filter data based on the query
+    filtered_df = filter_data(df, user_input)
 
-    st.dataframe(result_df.head(20))
+    if not filtered_df.empty:
+        st.success("Here is your extracted data:")
+        st.dataframe(filtered_df)
 
-    # Create downloadable Excel
-    towrite = io.BytesIO()
-    with pd.ExcelWriter(towrite, engine='xlsxwriter') as writer:
-        result_df.to_excel(writer, index=False, sheet_name='Filtered')
-    towrite.seek(0)
-
-    st.download_button(
-        label="📥 Download Excel",
-        data=towrite,
-        file_name="filtered_output.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        # Provide download link for Excel
+        excel_data = to_excel(filtered_df)
+        st.download_button(label="📥 Download Excel",
+                           data=excel_data,
+                           file_name='filtered_data.xlsx',
+                           mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    else:
+        st.warning("No matching records found.")
