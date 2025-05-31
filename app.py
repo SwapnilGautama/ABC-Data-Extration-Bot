@@ -21,46 +21,102 @@ def load_data():
     # Read Excel from bytes
     excel_file = io.BytesIO(response.content)
     df = pd.read_excel(excel_file)
+
+    # Strip column names
+    df.columns = df.columns.str.strip()
+
+    # Convert report_date
+    if 'report_date' in df.columns:
+        df['report_date'] = pd.to_datetime(df['report_date'], errors='coerce')
+
     return df
-    
+
 # Clean and match text
 def filter_data(df, query):
     filtered = df.copy()
-
     query = query.lower()
 
-    # Filter by product if mentioned
-    products = df['product'].unique()
-    for prod in products:
-        if prod.lower() in query:
-            filtered = filtered[filtered['product'].str.lower() == prod.lower()]
-            break  # Apply first matching product only
+    # Product
+    if 'product' in df:
+        for prod in df['product'].dropna().unique():
+            if prod.lower() in query:
+                filtered = filtered[filtered['product'].str.lower() == prod.lower()]
+                break
 
-    # Filter by date if a recognizable date is mentioned (e.g. "24th May", "2025-05-24")
+    # KYC Verified
+    if 'KYC_Verified' in df:
+        if "kyc yes" in query or "kyc verified" in query:
+            filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == "Y"]
+        elif "kyc no" in query or "kyc not verified" in query:
+            filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == "N"]
+
+    # Employment Type
+    if 'Employment_Type' in df:
+        for emp in df['Employment_Type'].dropna().unique():
+            if emp.lower() in query:
+                filtered = filtered[filtered['Employment_Type'].str.lower() == emp.lower()]
+                break
+
+    # City
+    if 'City' in df:
+        for city in df['City'].dropna().unique():
+            if city.lower() in query:
+                filtered = filtered[filtered['City'].str.lower() == city.lower()]
+                break
+
+    # State
+    if 'State' in df:
+        for state in df['State'].dropna().unique():
+            if state.lower() in query:
+                filtered = filtered[filtered['State'].str.lower() == state.lower()]
+                break
+
+    # Date
     from dateutil import parser
     import re
-
-    # Extract something like '24th May', 'May 24', or '2025-05-24'
-    date_match = re.search(r'\d{1,2}[a-z]{0,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2}', query)
-    if date_match:
-        try:
-            parsed_date = parser.parse(date_match.group()).date()
-            filtered = filtered[filtered['report_date'].dt.date == parsed_date]
-        except:
-            pass  # silently fail if parsing fails
+    if 'report_date' in df:
+        date_match = re.search(r'\d{1,2}[a-z]{0,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2}', query)
+        if date_match:
+            try:
+                parsed_date = parser.parse(date_match.group()).date()
+                filtered = filtered[filtered['report_date'].dt.date == parsed_date]
+            except:
+                pass
 
     return filtered
 
-# Sidebar display for user clarity
+# Sidebar display
 def sidebar_filters(df):
-    st.sidebar.markdown("### 📅 Available Report Dates")
-    for date in sorted(df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()):
-        st.sidebar.markdown(f"- {date}")
+    if 'report_date' in df:
+        st.sidebar.markdown("### 📅 Available Report Dates")
+        for date in sorted(df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()):
+            st.sidebar.markdown(f"- {date}")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📦 Available Products")
-    for product in sorted(df['product'].dropna().unique()):
-        st.sidebar.markdown(f"- {product}")
+    if 'product' in df:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📦 Available Products")
+        for product in sorted(df['product'].dropna().unique()):
+            st.sidebar.markdown(f"- {product}")
+
+    if 'Employment_Type' in df:
+        st.sidebar.markdown("### 👤 Employment Types")
+        for emp in sorted(df['Employment_Type'].dropna().unique()):
+            st.sidebar.markdown(f"- {emp}")
+
+    if 'KYC_Verified' in df:
+        st.sidebar.markdown("### ✅ KYC Verified")
+        for kyc in sorted(df['KYC_Verified'].dropna().unique()):
+            st.sidebar.markdown(f"- {kyc}")
+
+    if 'City' in df:
+        st.sidebar.markdown("### 🏙️ Cities")
+        for city in sorted(df['City'].dropna().unique()):
+            st.sidebar.markdown(f"- {city}")
+
+    if 'State' in df:
+        st.sidebar.markdown("### 🗺️ States")
+        for state in sorted(df['State'].dropna().unique()):
+            st.sidebar.markdown(f"- {state}")
 
 # App UI
 st.title("📘 Chat with ABC Data Extractor")
@@ -71,7 +127,6 @@ sidebar_filters(df)
 
 if user_input:
     st.markdown("Processing your request...")
-
     result = filter_data(df, user_input)
 
     if not result.empty:
