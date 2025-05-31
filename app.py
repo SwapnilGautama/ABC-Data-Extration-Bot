@@ -111,5 +111,30 @@ if user_input:
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             result.to_excel(writer, index=False, sheet_name='FilteredData')
         st.download_button("⬇️ Download Excel", output.getvalue(), file_name="filtered_data.xlsx", mime="application/vnd.ms-excel")
+
+        # ------------------------ INSIGHTS SECTION ------------------------
+        st.markdown("### 📊 Insights on Filtered Data")
+
+        def plot_pie_chart(data, title):
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            data.value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
+            ax.set_ylabel("")
+            ax.set_title(title)
+            st.pyplot(fig)
+
+        if 'KYC_Verified' in result.columns and not result['KYC_Verified'].isna().all():
+            plot_pie_chart(result['KYC_Verified'], "KYC Verification Status")
+
+        if 'product' in result.columns and not result['product'].isna().all():
+            plot_pie_chart(result['product'], "Product Distribution")
+
+        if 'report_date' in result.columns and not result['report_date'].isna().all():
+            plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Distribution")
+
+        if 'Employment_Type' in result.columns and not result['Employment_Type'].isna().all():
+            plot_pie_chart(result['Employment_Type'], "Employment Type Distribution")
+        # ------------------------------------------------------------------
+
     else:
         st.warning("No results found for your query. Please try refining it.")
