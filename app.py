@@ -46,9 +46,9 @@ def filter_data(df, query):
         filtered = filtered[filtered['kyc_verified'].astype(str).str.lower() == "no"]
 
     # Employment type filter
-    for emp_type in df['employment_type'].dropna().unique():
+    for emp_type in df['Employment_type'].dropna().unique():
         if emp_type.lower() in query:
-            filtered = filtered[filtered['employment_type'].str.lower() == emp_type.lower()]
+            filtered = filtered[filtered['Employment_type'].str.lower() == emp_type.lower()]
             break
 
     # City filter
