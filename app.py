@@ -7,14 +7,13 @@ from datetime import datetime
 from dateutil import parser
 import re
 
-# Set Streamlit page config
+# Set page config
 st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 
-# Load Excel from GitHub
+# Load data
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extration-Bot/main/Customer_Master_Enhanced.xlsx"
-    
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
@@ -24,13 +23,9 @@ def load_data():
         st.error("Data load timed out. Please try again later.")
         return pd.DataFrame()
 
-    excel_file = io.BytesIO(response.content)
-    df = pd.read_excel(excel_file)
-
-    # Standardize column names
+    df = pd.read_excel(io.BytesIO(response.content))
     df.columns = df.columns.str.strip().str.lower()
 
-    # Ensure report_date is datetime
     if 'report_date' in df.columns:
         df['report_date'] = pd.to_datetime(df['report_date'], errors='coerce')
 
@@ -41,42 +36,36 @@ def filter_data(df, query):
     filtered = df.copy()
     query = query.lower()
 
-    # Filter by product
     if 'product' in df.columns:
         for prod in df['product'].dropna().unique():
             if prod.lower() in query:
                 filtered = filtered[filtered['product'].str.lower() == prod.lower()]
                 break
 
-    # Filter by KYC
     if 'kyc_verified' in df.columns:
         if "kyc yes" in query or "kyc verified" in query:
             filtered = filtered[filtered['kyc_verified'].str.upper() == "Y"]
         elif "kyc no" in query or "kyc not verified" in query:
             filtered = filtered[filtered['kyc_verified'].str.upper() == "N"]
 
-    # Filter by employment type
     if 'employment_type' in df.columns:
         for emp_type in df['employment_type'].dropna().unique():
             if emp_type.lower() in query:
                 filtered = filtered[filtered['employment_type'].str.lower() == emp_type.lower()]
                 break
 
-    # Filter by city
     if 'city' in df.columns:
         for city in df['city'].dropna().unique():
             if city.lower() in query:
                 filtered = filtered[filtered['city'].str.lower() == city.lower()]
                 break
 
-    # Filter by state
     if 'state' in df.columns:
         for state in df['state'].dropna().unique():
             if state.lower() in query:
                 filtered = filtered[filtered['state'].str.lower() == state.lower()]
                 break
 
-    # Filter by date
     if 'report_date' in df.columns:
         date_match = re.search(r'\d{1,2}[a-z]{0,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2}', query)
         if date_match:
@@ -88,7 +77,7 @@ def filter_data(df, query):
 
     return filtered
 
-# Sidebar: Show filters
+# Sidebar filters
 def sidebar_filters(df):
     if 'report_date' in df.columns:
         st.sidebar.markdown("### 📅 Available Report Dates")
@@ -115,7 +104,7 @@ def sidebar_filters(df):
         for state in sorted(df['state'].dropna().unique()):
             st.sidebar.markdown(f"- {state}")
 
-# Chart utility
+# Pie chart util
 def plot_pie_chart(data, title):
     fig, ax = plt.subplots()
     data.value_counts().nlargest(10).plot.pie(autopct='%1.1f%%', ax=ax)
@@ -123,45 +112,48 @@ def plot_pie_chart(data, title):
     ax.set_title(title)
     st.pyplot(fig)
 
-# Main app logic
+# Load the data
 st.title("📘 Chat with ABC Data Extractor")
-user_input = st.text_input("Ask a question about the data (e.g. 'show me gold loan data from 24th May')")
-
 df = load_data()
+
 if not df.empty:
     sidebar_filters(df)
 
-    if user_input:
-        st.markdown("Processing your request...")
-        result = filter_data(df, user_input)
+    # Controlled form input
+    with st.form("query_form"):
+        user_input = st.text_input("Ask a question about the data (e.g. 'show me gold loan data from 24th May')", "")
+        submitted = st.form_submit_button("Submit")
 
-        if not result.empty:
-            st.success("Here is your extracted data:")
-            st.markdown(f"🔹 **{len(result)} rows** matched your query.")
-            st.dataframe(result)
+    if submitted and user_input.strip():
+        with st.spinner("Processing your request..."):
+            result = filter_data(df, user_input)
 
-            # Excel Download
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                result.to_excel(writer, index=False, sheet_name='FilteredData')
-            st.download_button("⬇️ Download Excel", output.getvalue(), file_name="filtered_data.xlsx", mime="application/vnd.ms-excel")
+            if not result.empty:
+                st.success("Here is your extracted data:")
+                st.markdown(f"🔹 **{len(result)} rows** matched your query.")
+                st.dataframe(result)
 
-            # Insights
-            st.markdown("### 📊 Insights on Filtered Data")
-            try:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    result.to_excel(writer, index=False, sheet_name='FilteredData')
+                st.download_button("⬇️ Download Excel", output.getvalue(), file_name="filtered_data.xlsx", mime="application/vnd.ms-excel")
+
+                # Insights
+                st.markdown("### 📊 Insights on Filtered Data")
                 if 'kyc_verified' in result.columns:
-                    kyc_yes_pct = (result['kyc_verified'].str.upper() == 'Y').sum() / len(result) * 100
-                    st.markdown(f"- ✅ **{kyc_yes_pct:.1f}%** of filtered records are KYC verified.")
-            except:
-                st.warning("Couldn't compute KYC stats.")
+                    try:
+                        kyc_yes_pct = (result['kyc_verified'].str.upper() == 'Y').sum() / len(result) * 100
+                        st.markdown(f"- ✅ **{kyc_yes_pct:.1f}%** of filtered records are KYC verified.")
+                    except:
+                        pass
 
-            if 'product' in result.columns:
-                plot_pie_chart(result['product'], "Product Distribution")
+                if 'product' in result.columns:
+                    plot_pie_chart(result['product'], "Product Distribution")
 
-            if 'report_date' in result.columns:
-                plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Breakdown")
+                if 'report_date' in result.columns:
+                    plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Breakdown")
 
-            if 'employment_type' in result.columns:
-                plot_pie_chart(result['employment_type'], "Employment Type Breakdown")
-        else:
-            st.warning("No results found for your query. Please try refining it.")
+                if 'employment_type' in result.columns:
+                    plot_pie_chart(result['employment_type'], "Employment Type Breakdown")
+            else:
+                st.warning("No results found for your query.")
