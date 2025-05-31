@@ -43,14 +43,23 @@ def filter_data(df, query):
                 filtered = filtered[filtered['product'].str.lower() == prod.lower()]
                 break  # Apply first matching product only
 
-    # NEW: Filter by KYC_Verified field
+    # Improved KYC_Verified filtering
     if 'KYC_Verified' in df:
-        if "kyc yes" in query or "kyc verified" in query:
-            filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'Y']
-        elif "kyc no" in query or "kyc not verified" in query:
+        if (
+            "kyc no" in query 
+            or "kyc not verified" in query 
+            or "not kyc verified" in query 
+            or "not verified" in query
+        ):
             filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'N']
+        elif (
+            "kyc yes" in query 
+            or "kyc verified" in query 
+            or "verified kyc" in query
+        ):
+            filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'Y']
 
-    # Filter by date if a recognizable date is mentioned
+    # Filter by date
     from dateutil import parser
     import re
     if 'report_date' in df:
@@ -60,7 +69,7 @@ def filter_data(df, query):
                 parsed_date = parser.parse(date_match.group()).date()
                 filtered = filtered[filtered['report_date'].dt.date == parsed_date]
             except:
-                pass  # silently fail if parsing fails
+                pass
 
     return filtered
 
