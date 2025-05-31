@@ -40,25 +40,25 @@ def filter_data(df, query):
             break
 
     # KYC filter
-    if "kyc verified" in query or "kyc yes" in query:
-        filtered = filtered[filtered['kyc_verified'].astype(str).str.lower() == "yes"]
+    if "KYC Verified" in query or "kyc yes" in query:
+        filtered = filtered[filtered['KYC_Verified'].astype(str).str.lower() == "Y"]
     elif "kyc not verified" in query or "kyc no" in query:
-        filtered = filtered[filtered['kyc_verified'].astype(str).str.lower() == "no"]
+        filtered = filtered[filtered['KYC_Verified'].astype(str).str.lower() == "N"]
 
     # Employment type filter
-    for emp_type in df['Employment_type'].dropna().unique():
+    for emp_type in df['Employment_Type'].dropna().unique():
         if emp_type.lower() in query:
-            filtered = filtered[filtered['Employment_type'].str.lower() == emp_type.lower()]
+            filtered = filtered[filtered['Employment_Type'].str.lower() == emp_type.lower()]
             break
 
     # City filter
-    for city in df['city'].dropna().unique():
+    for city in df['City'].dropna().unique():
         if city.lower() in query:
             filtered = filtered[filtered['city'].str.lower() == city.lower()]
             break
 
     # State filter
-    for state in df['state'].dropna().unique():
+    for state in df['State'].dropna().unique():
         if state.lower() in query:
             filtered = filtered[filtered['state'].str.lower() == state.lower()]
             break
