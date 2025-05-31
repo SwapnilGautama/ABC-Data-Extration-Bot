@@ -11,7 +11,7 @@ st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 # Load Excel from GitHub
 @st.cache_data
 def load_data():
-    url = https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extration-Bot/main/Customer_Master_Enhanced.xlsx
+    url = "https://raw.githubusercontent.com/SwapnilGautama/ABC-Data-Extration-Bot/main/Customer_Master_Enhanced.xlsx"
     response = requests.get(url)
 
     if response.status_code != 200:
