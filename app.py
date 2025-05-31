@@ -3,7 +3,7 @@ import pandas as pd
 import openai
 import io
 import requests
-from datetime import datetime
+from datetime import datetime, date
 
 # Set Streamlit page config first
 st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
@@ -28,6 +28,10 @@ def load_data():
     # Convert report_date to datetime
     if 'report_date' in df.columns:
         df['report_date'] = pd.to_datetime(df['report_date'], errors='coerce')
+
+    # Convert DOB to datetime for age bucket later
+    if 'DOB' in df.columns:
+        df['DOB'] = pd.to_datetime(df['DOB'], errors='coerce')
 
     return df
 
@@ -110,26 +114,43 @@ if user_input:
 
         import matplotlib.pyplot as plt
 
-        def plot_pie_chart(col, title, col_slot):
+        def plot_pie_chart(col, title, slot):
             fig, ax = plt.subplots()
             col.value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
             ax.set_ylabel("")
             ax.set_title(title)
-            col_slot.pyplot(fig)
+            slot.pyplot(fig)
 
-        col1, col2 = st.columns(2)
+        # Row 1 - KYC, Product, State
+        col1, col2, col3 = st.columns(3)
         if 'KYC_Verified' in result.columns and not result['KYC_Verified'].isna().all():
             plot_pie_chart(result['KYC_Verified'], "KYC Verification Status", col1)
 
         if 'product' in result.columns and not result['product'].isna().all():
             plot_pie_chart(result['product'], "Product Distribution", col2)
 
-        col3, col4 = st.columns(2)
+        if 'State' in result.columns and not result['State'].isna().all():
+            plot_pie_chart(result['State'], "State Distribution", col3)
+
+        # Row 2 - Report Date, Employment Type, Age Buckets
+        col4, col5, col6 = st.columns(3)
         if 'report_date' in result.columns and not result['report_date'].isna().all():
-            plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Distribution", col3)
+            plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Distribution", col4)
 
         if 'Employment_Type' in result.columns and not result['Employment_Type'].isna().all():
-            plot_pie_chart(result['Employment_Type'], "Employment Type Distribution", col4)
+            plot_pie_chart(result['Employment_Type'], "Employment Type Distribution", col5)
+
+        if 'DOB' in result.columns:
+            today = date.today()
+            dob_series = result['DOB'].dropna()
+            age_bucket = pd.cut(
+                dob_series.apply(lambda dob: today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))),
+                bins=[0, 30, 40, 50, 60, 150],
+                labels=["Under 30", "30-40", "40-50", "50-60", "60+"],
+                right=False
+            )
+            if not age_bucket.empty:
+                plot_pie_chart(age_bucket, "Age Distribution", col6)
         # ------------------------------------------------------------------
 
         # Display data table
