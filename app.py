@@ -4,8 +4,9 @@ import openai
 import io
 import requests
 from datetime import datetime, date
+import matplotlib.pyplot as plt
 
-# Set Streamlit page config first
+# Set Streamlit page config
 st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 
 # Load Excel from GitHub
@@ -16,31 +17,27 @@ def load_data():
 
     if response.status_code != 200:
         st.error(f"Failed to load data. HTTP {response.status_code}")
-        return pd.DataFrame()  # return empty DataFrame to prevent crash
+        return pd.DataFrame()
 
-    # Read Excel from bytes
     excel_file = io.BytesIO(response.content)
     df = pd.read_excel(excel_file)
 
-    # Ensure proper column names (strip spaces and standardize case)
     df.columns = df.columns.str.strip()
 
-    # Convert report_date to datetime
     if 'report_date' in df.columns:
         df['report_date'] = pd.to_datetime(df['report_date'], errors='coerce')
 
-    # Convert DOB to datetime for age bucket later
     if 'DOB' in df.columns:
         df['DOB'] = pd.to_datetime(df['DOB'], errors='coerce')
 
     return df
 
-# Clean and match text
+# Filter logic
 def filter_data(df, query):
     filtered = df.copy()
     query = query.lower()
 
-    # Product filter
+    # Product
     if 'product' in df:
         matched_product = None
         for prod in df['product'].dropna().unique():
@@ -50,23 +47,14 @@ def filter_data(df, query):
         if matched_product:
             filtered = filtered[filtered['product'].str.lower() == matched_product.lower()]
 
-    # KYC_Verified filter
+    # KYC
     if 'KYC_Verified' in df:
-        if (
-            "kyc no" in query 
-            or "kyc not verified" in query 
-            or "not kyc verified" in query 
-            or "not verified" in query
-        ):
+        if any(term in query for term in ["kyc no", "kyc not verified", "not kyc verified", "not verified"]):
             filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'N']
-        elif (
-            "kyc yes" in query 
-            or "kyc verified" in query 
-            or "verified kyc" in query
-        ):
+        elif any(term in query for term in ["kyc yes", "kyc verified", "verified kyc"]):
             filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'Y']
 
-    # Date filter
+    # Date
     from dateutil import parser
     import re
     if 'report_date' in df:
@@ -80,7 +68,7 @@ def filter_data(df, query):
 
     return filtered
 
-# Sidebar display for user clarity
+# Sidebar filters
 def sidebar_filters(df):
     st.sidebar.markdown("### 📅 Available Report Dates")
     if 'report_date' in df:
@@ -93,7 +81,31 @@ def sidebar_filters(df):
         for product in sorted(df['product'].dropna().unique()):
             st.sidebar.markdown(f"- {product}")
 
-# App UI
+# Chart utilities
+def plot_pie_chart(series, title, slot):
+    fig, ax = plt.subplots()
+    series.value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
+    ax.set_ylabel("")
+    ax.set_title(title)
+    slot.pyplot(fig)
+
+def plot_bar_chart(series, title, slot):
+    fig, ax = plt.subplots()
+    series.value_counts().sort_values().plot.barh(ax=ax)
+    ax.set_title(title)
+    slot.pyplot(fig)
+
+def plot_line_chart(series, title, slot):
+    fig, ax = plt.subplots()
+    formatted = series.dropna().dt.strftime('%Y-%m-%d')
+    formatted.value_counts().sort_index().plot(ax=ax, kind='line', marker='o')
+    ax.set_title(title)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Count")
+    ax.grid(True)
+    slot.pyplot(fig)
+
+# Main app
 st.title("📘 Chat with ABC Data Extractor")
 user_input = st.text_input("Ask a question about the data (e.g. 'show me gold loan data from 24th May')")
 
@@ -102,45 +114,30 @@ sidebar_filters(df)
 
 if user_input:
     st.markdown("Processing your request...")
-
     result = filter_data(df, user_input)
 
     if not result.empty:
         st.success("Here is your extracted data:")
         st.markdown(f"🔹 **{len(result)} rows** matched your query.")
 
-        # ------------------------ INSIGHTS SECTION ------------------------
+        # ------------------ INSIGHTS SECTION ------------------
         st.markdown("### 📊 Insights on Filtered Data")
 
-        import matplotlib.pyplot as plt
-
-        def plot_pie_chart(col, title, slot):
-            fig, ax = plt.subplots()
-            col.value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
-            ax.set_ylabel("")
-            ax.set_title(title)
-            slot.pyplot(fig)
-
-        # Row 1 - KYC, Product, State
         col1, col2, col3 = st.columns(3)
-        if 'KYC_Verified' in result.columns and not result['KYC_Verified'].isna().all():
+        if 'KYC_Verified' in result:
             plot_pie_chart(result['KYC_Verified'], "KYC Verification Status", col1)
 
-        if 'product' in result.columns and not result['product'].isna().all():
-            plot_pie_chart(result['product'], "Product Distribution", col2)
+        if 'product' in result:
+            plot_bar_chart(result['product'], "Product Distribution", col2)
 
-        if 'State' in result.columns and not result['State'].isna().all():
-            plot_pie_chart(result['State'], "State Distribution", col3)
+        if 'report_date' in result:
+            plot_line_chart(result['report_date'], "Report Date Distribution", col3)
 
-        # Row 2 - Report Date, Employment Type, Age Buckets
         col4, col5, col6 = st.columns(3)
-        if 'report_date' in result.columns and not result['report_date'].isna().all():
-            plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Distribution", col4)
+        if 'Employment_Type' in result:
+            plot_bar_chart(result['Employment_Type'], "Employment Type Distribution", col4)
 
-        if 'Employment_Type' in result.columns and not result['Employment_Type'].isna().all():
-            plot_pie_chart(result['Employment_Type'], "Employment Type Distribution", col5)
-
-        if 'DOB' in result.columns:
+        if 'DOB' in result:
             today = date.today()
             dob_series = result['DOB'].dropna()
             age_bucket = pd.cut(
@@ -150,13 +147,13 @@ if user_input:
                 right=False
             )
             if not age_bucket.empty:
-                plot_pie_chart(age_bucket, "Age Distribution", col6)
-        # ------------------------------------------------------------------
+                plot_pie_chart(age_bucket, "Age Distribution", col5)
 
-        # Display data table
+        # ------------------------------------------------------
+
         st.dataframe(result)
 
-        # Export to Excel
+        # Excel download
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             result.to_excel(writer, index=False, sheet_name='FilteredData')
