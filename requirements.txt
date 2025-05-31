@@ -5,7 +5,8 @@ xlsxwriter
 dateparser
 requests
 openpyxl
-
+matplotlib
+python-dateutil
 
 
 
