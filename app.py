@@ -36,14 +36,17 @@ def filter_data(df, query):
     filtered = df.copy()
     query = query.lower()
 
-    # Filter by product if mentioned
+    # Product filter
     if 'product' in df:
+        matched_product = None
         for prod in df['product'].dropna().unique():
             if prod.lower() in query:
-                filtered = filtered[filtered['product'].str.lower() == prod.lower()]
-                break  # Apply first matching product only
+                matched_product = prod
+                break
+        if matched_product:
+            filtered = filtered[filtered['product'].str.lower() == matched_product.lower()]
 
-    # Improved KYC_Verified filtering
+    # KYC_Verified filter
     if 'KYC_Verified' in df:
         if (
             "kyc no" in query 
@@ -59,7 +62,7 @@ def filter_data(df, query):
         ):
             filtered = filtered[filtered['KYC_Verified'].astype(str).str.upper() == 'Y']
 
-    # Filter by date
+    # Date filter
     from dateutil import parser
     import re
     if 'report_date' in df:
