@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import openai
 import io
 import requests
 import matplotlib.pyplot as plt
@@ -8,7 +7,7 @@ from datetime import datetime
 from dateutil import parser
 import re
 
-# Set Streamlit page config first
+# Set Streamlit page config
 st.set_page_config(page_title="ABC Data Extractor", page_icon="📘")
 
 # Load Excel from GitHub
@@ -23,7 +22,10 @@ def load_data():
 
     excel_file = io.BytesIO(response.content)
     df = pd.read_excel(excel_file)
-    
+
+    # Standardize column names for consistency
+    df.columns = df.columns.str.strip()
+
     # Ensure 'report_date' is datetime
     df['report_date'] = pd.to_datetime(df['report_date'], errors='coerce')
     return df
@@ -40,10 +42,10 @@ def filter_data(df, query):
             break
 
     # KYC filter
-    if "KYC Verified" in query or "kyc yes" in query:
-        filtered = filtered[filtered['KYC_Verified'].astype(str).str.lower() == "Y"]
-    elif "kyc not verified" in query or "kyc no" in query:
-        filtered = filtered[filtered['KYC_Verified'].astype(str).str.lower() == "N"]
+    if "kyc yes" in query or "kyc verified" in query:
+        filtered = filtered[filtered['KYC_Verified'].str.upper() == "Y"]
+    elif "kyc no" in query or "kyc not verified" in query:
+        filtered = filtered[filtered['KYC_Verified'].str.upper() == "N"]
 
     # Employment type filter
     for emp_type in df['Employment_Type'].dropna().unique():
@@ -54,13 +56,13 @@ def filter_data(df, query):
     # City filter
     for city in df['City'].dropna().unique():
         if city.lower() in query:
-            filtered = filtered[filtered['city'].str.lower() == city.lower()]
+            filtered = filtered[filtered['City'].str.lower() == city.lower()]
             break
 
     # State filter
     for state in df['State'].dropna().unique():
         if state.lower() in query:
-            filtered = filtered[filtered['state'].str.lower() == state.lower()]
+            filtered = filtered[filtered['State'].str.lower() == state.lower()]
             break
 
     # Date filter
@@ -74,7 +76,7 @@ def filter_data(df, query):
 
     return filtered
 
-# Sidebar: Display report dates and products
+# Sidebar filters
 def sidebar_filters(df):
     st.sidebar.markdown("### 📅 Available Report Dates")
     for date in sorted(df['report_date'].dropna().dt.strftime('%Y-%m-%d').unique()):
@@ -85,15 +87,15 @@ def sidebar_filters(df):
         st.sidebar.markdown(f"- {product}")
 
     st.sidebar.markdown("### 👤 Employment Types")
-    for emp in sorted(df['employment_type'].dropna().unique()):
+    for emp in sorted(df['Employment_Type'].dropna().unique()):
         st.sidebar.markdown(f"- {emp}")
 
     st.sidebar.markdown("### 🏙️ Cities")
-    for city in sorted(df['city'].dropna().unique()):
+    for city in sorted(df['City'].dropna().unique()):
         st.sidebar.markdown(f"- {city}")
 
     st.sidebar.markdown("### 🗺️ States")
-    for state in sorted(df['state'].dropna().unique()):
+    for state in sorted(df['State'].dropna().unique()):
         st.sidebar.markdown(f"- {state}")
 
 # Chart rendering utility
@@ -129,7 +131,7 @@ if user_input:
         # Insights
         st.markdown("### 📊 Insights on Filtered Data")
         try:
-            kyc_yes_pct = (result['kyc_verified'].str.lower() == 'yes').sum() / len(result) * 100
+            kyc_yes_pct = (result['KYC_Verified'].str.upper() == 'Y').sum() / len(result) * 100
             st.markdown(f"- ✅ **{kyc_yes_pct:.1f}%** of filtered records are KYC verified.")
         except:
             st.warning("Couldn't compute KYC stats.")
@@ -138,8 +140,8 @@ if user_input:
             plot_pie_chart(result['product'], "Product Distribution")
         if 'report_date' in result:
             plot_pie_chart(result['report_date'].dt.strftime('%Y-%m-%d'), "Report Date Breakdown")
-        if 'employment_type' in result:
-            plot_pie_chart(result['employment_type'], "Employment Type Breakdown")
+        if 'Employment_Type' in result:
+            plot_pie_chart(result['Employment_Type'], "Employment Type Breakdown")
 
     else:
         st.warning("No results found for your query. Please try refining it.")
